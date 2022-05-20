@@ -1,0 +1,13 @@
+>collect xx
+>regex_collect xx
+help
+arrow history commands
+random
+query
+key = ??
+example = ??
+query || [key1,key2]
+today || [key1,key2]
+finish or finish uuid
+quit
+"""
