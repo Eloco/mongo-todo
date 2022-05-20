@@ -162,13 +162,15 @@ class MongoTodo:
     def insert(self                                ,
                status : str ="todo"                ,
                label  : str ="test"                ,
-               abbr   : str ="abbr of todo"        ,
-               desc   : str ="description of todo" ,
+               abbr   : str =""                    ,
+               desc   : str =""                    ,
                imp    : int =3                     ,
                ddl    : str =""                    ,
                uuid   : str =generate_uuid()       ,
+               beauty : bool =True                 ,
               ):
         assert status in ["todo", "done", "closed", "freeze"]
+        assert abbr != "", "abbr is empty"
         assert imp    in [0, 1, 2, 3, 4, 5]  # important level from 0 to 5 
 
         create_time  = datetime.now(tzinfo)
@@ -181,6 +183,14 @@ class MongoTodo:
             # if ddl is not empty, use user input ddl from nature language
             ddl_time = extract_date(ddl)
         assert isinstance(ddl_time, datetime)
+
+        if beauty:
+            while True:
+                reply = input(f"are u sure about the ddl \n<{ddl_time.strftime('%Y-%m-%d %H:%M:%S')}>? (y/n)").lower()
+                if reply == "y":
+                    break
+                else :
+                    ddl_time = extract_date(input("please input the ddl time: "))
 
         query_dict = {
             "status" : status,
