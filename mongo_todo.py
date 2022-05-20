@@ -2,7 +2,7 @@
 # coding=utf-8
 from pymongo import MongoClient
 import pytz
-from datetime import datetime
+from datetime import datetime,timedelta
 import os 
 import emoji
 import time
@@ -34,6 +34,8 @@ print("                                             by eloco")
 mongo_url =os.environ.get('TODO_MONGODB_URI')   or 'mongodb://localhost:27017/'
 timezone  =os.environ.get('MYTZ')               or os.environ.get('TZ') # TZ is system default timezone
 tzinfo    =pytz.timezone(timezone) 
+assert "mongodb" in mongo_url
+
 
 class MongoTodo:
 
@@ -71,9 +73,10 @@ class MongoTodo:
 
         create_time  = datetime.now(tzinfo)
 
-        # DDL generate
+        # DDL generate 
         if ddl.strip() == "":
-            ddl = create_time + timedelta(days=self.default_ddl[imp]["day"])
+            # if ddl is empty, use default ddl
+            ddl_time = create_time + timedelta(days=self.default_ddl[str(imp)]["day"])
         else:
             # support Chinese and English Natural Language (Chinese better due to the jionlp library)
             try:
@@ -98,15 +101,20 @@ class MongoTodo:
         check_query = {}
         for key in ["abbr","desc"]:
             check_query[key] = query_dict[key]
-        if (find:= self.col.count_documents(check_query)) == 0:
-            self.col.insert_one(query_dict)
-            print(f"{query_dict['abbr']} just inserted")
+
+        find = list(self.col.find(check_query))
+        if len(find) == 0:
+            _insert = self.col.insert_one(query_dict)
+            print(f"{query_dict['abbr']} just inserted, _id: {_insert.inserted_id}")
+            return _insert.inserted_id
         else:
-            print(f"{query_dict['abbr']} already exists, {find} records found")
+            print(f"{query_dict['abbr']} already exists, {len(find)} records found")
+            for f in list(self.col.find(check_query)):
+                print(f"""_id: {f["_id"]} \t abbr: {f['abbr']}""")
+            return find
 
     def find_all(self):
         return list(self.col.find({}))
 
 a = MongoTodo()
-#a.insert(abbr="haha")
-pprint(a.find_all())
+a.insert(abbr="fafa")
