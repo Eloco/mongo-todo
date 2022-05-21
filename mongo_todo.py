@@ -13,15 +13,16 @@ import traceback
 import jionlp as jio
 from dateparser import parse
 import uuid
+import signal
 
 """
 done>>@mongo connect
 done>>@mongo insert todo with label
 done>>@mongo search by label or desc or abbr or date
 done>>@mongo count sql
-@mongo delete todo
+done>>@mongo delete todo
+done>>@mongo set done or doing
 @mongo edit todo
-@mongo set done or doing
 @mongo auto renew DDL?
 @mongo cli version pipline!!
 """
@@ -92,10 +93,26 @@ timezone  =os.environ.get('MYTZ')               or os.environ.get('TZ') # TZ is 
 tzinfo    =pytz.timezone(timezone) 
 assert "mongodb" in mongo_url
 
+import signal
+import sys
+
+def signal_handler(signal, frame):
+    print('\n\nGoodbye!')
+    sys.exit(0)
+
+
 def generate_uuid():
     return str(uuid.uuid1())
 
-def beautify_list(result):
+def beautify_list(result,simple:bool=False):
+    if simple:
+        for r in result:
+            for key in ["uuid","abbr"]:
+                if key == "uuid":
+                    print(f"\nuuid: {r['uuid']}")
+                else:
+                    print(f"""\t{key}:\t{r[key]}""")
+        return
     for r in result:
         print()
         for key in key_order:
@@ -110,10 +127,13 @@ def extract_date(date_string : str):
     # support Chinese and English Natural Language (Chinese better due to the jionlp library)
     try:
         res = jio.parse_time(date_string, time_base=datetime.now(tzinfo),time_type='time_point')
+        if res["type"] != "time_point":
+            return(datetime.now(tzinfo))
         res = res["time"][-1]
         ddl_time = parse(res, settings={'TIMEZONE': timezone})
     except:
-        ddl_time = parse(date_string, settings={'TIMEZONE': timezone})
+        ddl_time = parse(date_string, settings={'TIMEZONE': timezone,'PREFER_DATES_FROM': 'future'})
+        print(ddl_time)
     return ddl_time
 
 def replace_jsonQuery(jsonQuery):
@@ -182,7 +202,6 @@ class MongoTodo:
         else:
             # if ddl is not empty, use user input ddl from nature language
             ddl_time = extract_date(ddl)
-        assert isinstance(ddl_time, datetime)
 
         if beauty:
             while True:
@@ -190,7 +209,7 @@ class MongoTodo:
                 if reply == "y":
                     break
                 else :
-                    ddl_time = extract_date(input("please input the ddl time: "))
+                    ddl_time = extract_date(input("please input the correct ddl date: "))
 
         query_dict = {
             "status" : status,
@@ -280,5 +299,68 @@ class MongoTodo:
         if nums   > 0:result = result[:nums]
         if beauty:beautify_list(result)
         else:return (result,len(result))
+
+    def query_uuid(self,
+                   uuid_str        = "uuid,ddiu",
+                   beauty   : bool = True       ,
+                  ):
+        uuid_str     = str(uuid_str)
+        uuid_str_list=re.split(r'[^\w\d\-]',uuid_str)
+        for u in uuid_str_list:
+            if u.strip() != "":
+                sql     = {"uuid":{"$regex":f'{u.strip()}.*'}}
+                result = list(self.col.find(sql))
+                if beauty:beautify_list(result)
+                else:return (result,len(result))
+
+    def _update(self,
+                sql     : dict = {}  ,
+                update  : dict = {}  ,
+               ):
+        self.col.update_one(sql,update)
+        result = self.col.find(sql)
+        return(result)
+
+    def set_status(self,
+                   uuid_str        = "uuid,ddiu",
+                   status   : str  = "done"     ,
+                   beauty   : bool = True       ,
+                  ):
+        uuid_str     = str(uuid_str)
+        assert status in ["todo", "done", "closed", "freeze"]
+        uuid_str_list=re.split(r'[^\w\d\-]',uuid_str)
+        for u in uuid_str_list:
+            if u.strip() != "":
+                sql     = {"uuid":{"$regex":f'{u.strip()}.*'}}
+                update  = {"$set":{"status":status}}
+                result = self._update(sql,update)
+                if beauty:beautify_list(result)
+                else:return (result,len(result))
+    
+    def del_uuid(self,
+                uuid_str        = "uuid,ddiu",
+                beauty   : bool = True       ,
+                ):
+        uuid_str     = str(uuid_str)
+        uuid_str_list=re.split(r'[^\w\d\-]',uuid_str)
+        for u in uuid_str_list:
+            if u.strip() != "":
+                sql     = {"uuid":{"$regex":f'{u.strip()}.*'}}
+                result  = list(self.col.find(sql))
+                print(f"{sql} found {len(list(result))} records ")
+                if len(list(result)) == 0:
+                    continue
+                if beauty:
+                    beautify_list(result,simple=True)
+                    reply = input(f"are u sure to delete? (y/n)").lower()
+                    if reply == "y":
+                        self.col.delete_many(sql)
+                        print(f"{sql} deleted")
+                    else:
+                        return
+    def update_uuid(self):
+        pass
+
 if __name__ == '__main__':
-  fire.Fire(MongoTodo)
+    signal.signal(signal.SIGINT, signal_handler)
+    fire.Fire(MongoTodo)
