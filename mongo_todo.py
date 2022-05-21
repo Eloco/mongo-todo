@@ -88,7 +88,7 @@ print("                                                     ")
 print("                                             by eloco")
 
 
-mongo_url =os.environ.get('TODO_MONGODB_URI')   or 'mongodb://localhost:27017/'
+mongo_url =os.environ.get('TODO_MONGODB_URI')   or 'mongodb://user:pass@localhost:27017/'
 timezone  =os.environ.get('MYTZ')               or os.environ.get('TZ') # TZ is system default timezone
 tzinfo    =pytz.timezone(timezone) 
 assert "mongodb" in mongo_url
@@ -105,17 +105,13 @@ def generate_uuid():
     return str(uuid.uuid1())
 
 def beautify_list(result,simple:bool=False):
-    if simple:
-        for r in result:
-            for key in ["uuid","abbr"]:
-                if key == "uuid":
-                    print(f"\nuuid: {r['uuid']}")
-                else:
-                    print(f"""\t{key}:\t{r[key]}""")
-        return
+
+    if simple: order = ["uuid","abbr"]
+    else:order = key_order
+
     for r in result:
         print()
-        for key in key_order:
+        for key in order:
             if key == "uuid":
                 print(f"uuid: {r['uuid']}")
             elif type(r[key]) == datetime:
